@@ -1,0 +1,800 @@
+wget -O dictionary.tsv https://s3.amazonaws.com/hipicdatasets/dictionary.tsv
+
+wget  https://s3.amazonaws.com/vm-election10282016-2/tweets10302016.tgz
+
+tar -xzvf tweets10302016.tgz
+
+
+
+hdfs dfs -mkdir p3
+hdfs dfs -mkdir p3/a100
+hdfs dfs -mkdir p3/dictionary
+hdfs dfs -mkdir p3/zones
+hdfs dfs -mkdir p3/zones/p
+hdfs dfs -mkdir p3/zones/p/t
+hdfs dfs -mkdir p3/zones/p/t/pr
+hdfs dfs -mkdir p3/zones/p/t/nr
+hdfs dfs -mkdir p3/zones/p/h
+hdfs dfs -mkdir p3/zones/p/h/pr
+hdfs dfs -mkdir p3/zones/p/h/nr
+hdfs dfs -mkdir p3/zones/m
+hdfs dfs -mkdir p3/zones/m/t
+hdfs dfs -mkdir p3/zones/m/t/pr
+hdfs dfs -mkdir p3/zones/m/t/nr
+hdfs dfs -mkdir p3/zones/m/h
+hdfs dfs -mkdir p3/zones/m/h/pr
+hdfs dfs -mkdir p3/zones/m/h/nr
+hdfs dfs -mkdir p3/zones/c
+hdfs dfs -mkdir p3/zones/c/t
+hdfs dfs -mkdir p3/zones/c/t/pr
+hdfs dfs -mkdir p3/zones/c/t/nr
+hdfs dfs -mkdir p3/zones/c/h
+hdfs dfs -mkdir p3/zones/c/h/pr
+hdfs dfs -mkdir p3/zones/c/h/nr
+hdfs dfs -mkdir p3/zones/e
+hdfs dfs -mkdir p3/zones/e/t
+hdfs dfs -mkdir p3/zones/e/t/pr
+hdfs dfs -mkdir p3/zones/e/t/nr
+hdfs dfs -mkdir p3/zones/e/h
+hdfs dfs -mkdir p3/zones/e/h/pr
+hdfs dfs -mkdir p3/zones/e/h/nr
+
+
+
+
+CREATE DATABASE p3;
+
+use p3;
+
+
+
+CREATE EXTERNAL TABLE if not exists runone(
+
+idone BIGINT,
+idtwo BIGINT,
+created  STRING,
+language  STRING,
+avatar  STRING,
+country  STRING,
+title  STRING,
+first_struct STRING
+
+)
+
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY '|'
+STORED AS TEXTFILE
+LOCATION '/user/hadoop/p3/a100';
+
+
+==== Create Dictionary Table ====
+
+CREATE EXTERNAL TABLE if not exists dictionary (
+type string,
+length int,
+word string,
+pos string,
+stemmed string,
+polarity string)
+
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY '\t'
+STORED AS TEXTFILE
+LOCATION '/user/hadoop/p3/dictionary';
+
+
+
+
+=== Store Separate Zone Data ====
+
+INSERT OVERWRITE DIRECTORY '/user/hadoop/p3/zones/p' ROW FORMAT DELIMITED FIELDS TERMINATED BY ':' SELECT idone, LOWER(title) FROM runone WHERE country LIKE "%Pacific%";
+
+INSERT OVERWRITE DIRECTORY '/user/hadoop/p3/zones/m' ROW FORMAT DELIMITED FIELDS TERMINATED BY ':' SELECT idone,  LOWER(title) FROM runone WHERE country LIKE "%Mountain%";
+
+INSERT OVERWRITE DIRECTORY '/user/hadoop/p3/zones/c' ROW FORMAT DELIMITED FIELDS TERMINATED BY ':' SELECT idone,  LOWER(title) FROM runone WHERE country LIKE "%Central%";
+
+INSERT OVERWRITE DIRECTORY '/user/hadoop/p3/zones/e' ROW FORMAT DELIMITED FIELDS TERMINATED BY ':' SELECT idone,  LOWER(title) FROM runone WHERE country LIKE "%Eastern%";
+
+
+==== Create Tables for Zones ===
+
+
+
+CREATE EXTERNAL TABLE if not exists pzone(
+
+idone BIGINT,
+avatar STRING,
+tweet STRING
+
+)
+
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ':'
+STORED AS TEXTFILE
+LOCATION '/user/hadoop/p3/zones/p';
+
+
+
+
+---
+
+CREATE EXTERNAL TABLE if not exists mzone(
+
+idone BIGINT,
+avatar STRING,
+tweet STRING
+
+)
+
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ':'
+STORED AS TEXTFILE
+LOCATION '/user/hadoop/p3/zones/m';
+
+
+
+---
+
+
+CREATE EXTERNAL TABLE if not exists czone(
+
+idone BIGINT,
+avatar STRING,
+tweet STRING
+
+)
+
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ':'
+STORED AS TEXTFILE
+LOCATION '/user/hadoop/p3/zones/c';
+
+---
+
+CREATE EXTERNAL TABLE if not exists ezone(
+
+idone BIGINT,
+avatar STRING,
+tweet STRING
+
+)
+
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ':'
+STORED AS TEXTFILE
+LOCATION '/user/hadoop/p3/zones/e';
+
+
+=== Zone Analsyis Segmentation ====
+
+
+INSERT OVERWRITE DIRECTORY '/user/hadoop/p3/zones/p/t' ROW FORMAT DELIMITED FIELDS TERMINATED BY ','  SELECT idone, tweet FROM pzone WHERE tweet LIKE "%trump%" and tweet NOT LIKE "%hillary%";
+
+
+
+INSERT OVERWRITE DIRECTORY '/user/hadoop/p3/zones/p/h' ROW FORMAT DELIMITED FIELDS TERMINATED BY ','  SELECT idone, tweet FROM pzone WHERE tweet LIKE "%hillary%" and tweet NOT LIKE "%trump%";
+
+
+---
+
+INSERT OVERWRITE DIRECTORY '/user/hadoop/p3/zones/m/t' ROW FORMAT DELIMITED FIELDS TERMINATED BY ','  SELECT idone, tweet FROM mzone WHERE tweet LIKE "%trump%" and tweet NOT LIKE "%hillary%";
+
+
+
+INSERT OVERWRITE DIRECTORY '/user/hadoop/p3/zones/m/h' ROW FORMAT DELIMITED FIELDS TERMINATED BY ','  SELECT idone, tweet FROM mzone WHERE tweet LIKE "%hillary%" and tweet NOT LIKE "%trump%";
+
+
+--
+
+INSERT OVERWRITE DIRECTORY '/user/hadoop/p3/zones/c/t' ROW FORMAT DELIMITED FIELDS TERMINATED BY ','  SELECT idone, tweet FROM czone WHERE tweet LIKE "%trump%" and tweet NOT LIKE "%hillary%";
+
+
+
+INSERT OVERWRITE DIRECTORY '/user/hadoop/p3/zones/c/h' ROW FORMAT DELIMITED FIELDS TERMINATED BY ','  SELECT idone, tweet FROM czone WHERE tweet LIKE "%hillary%" and tweet NOT LIKE "%trump%";
+
+
+---
+
+INSERT OVERWRITE DIRECTORY '/user/hadoop/p3/zones/e/t' ROW FORMAT DELIMITED FIELDS TERMINATED BY ','  SELECT idone, tweet FROM ezone WHERE tweet LIKE "%trump%" and tweet NOT LIKE "%hillary%";
+
+
+
+INSERT OVERWRITE DIRECTORY '/user/hadoop/p3/zones/e/h' ROW FORMAT DELIMITED FIELDS TERMINATED BY ','  SELECT idone, tweet FROM ezone WHERE tweet LIKE "%hillary%" and tweet NOT LIKE "%trump%";
+
+
+
+=== Creating of Trump and Hillary Zone Tables ===
+
+
+
+CREATE EXTERNAL TABLE if not exists pzonet(
+
+idone BIGINT,
+tweet STRING
+
+)
+
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ','
+STORED AS TEXTFILE
+LOCATION '/user/hadoop/p3/zones/p/t';
+
+
+
+--
+
+CREATE EXTERNAL TABLE if not exists pzoneh(
+
+idone BIGINT,
+tweet STRING
+
+)
+
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ','
+STORED AS TEXTFILE
+LOCATION '/user/hadoop/p3/zones/p/h';
+
+
+
+---
+CREATE EXTERNAL TABLE if not exists mzonet(
+
+idone BIGINT,
+tweet STRING
+
+)
+
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ','
+STORED AS TEXTFILE
+LOCATION '/user/hadoop/p3/zones/m/t';
+
+
+
+--
+
+CREATE EXTERNAL TABLE if not exists mzoneh(
+
+idone BIGINT,
+tweet STRING
+
+)
+
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ','
+STORED AS TEXTFILE
+LOCATION '/user/hadoop/p3/zones/m/h';
+
+
+------
+CREATE EXTERNAL TABLE if not exists czonet(
+
+idone BIGINT,
+tweet STRING
+
+)
+
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ','
+STORED AS TEXTFILE
+LOCATION '/user/hadoop/p3/zones/c/t';
+
+
+
+--
+
+CREATE EXTERNAL TABLE if not exists czoneh(
+
+idone BIGINT,
+tweet STRING
+
+)
+
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ','
+STORED AS TEXTFILE
+LOCATION '/user/hadoop/p3/zones/c/h';
+
+-----
+
+CREATE EXTERNAL TABLE if not exists ezonet(
+
+idone BIGINT,
+tweet STRING
+
+)
+
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ','
+STORED AS TEXTFILE
+LOCATION '/user/hadoop/p3/zones/e/t';
+
+
+
+--
+
+CREATE EXTERNAL TABLE if not exists ezoneh(
+
+idone BIGINT,
+tweet STRING
+
+)
+
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ','
+STORED AS TEXTFILE
+LOCATION '/user/hadoop/p3/zones/e/h';
+
+
+
+
+=== Positive/Negative Sentiment Analysis for Trump and Hillary by Zones  ===
+
+-=-=-=-=- Pacific Trump
+
+
+create view IF NOT EXISTS p11 as
+select idone, message
+from pzonet
+LATERAL VIEW explode(sentences(lower(tweet))) dummy as message;
+
+
+
+create view IF NOT EXISTS p12 as 
+SELECT idone, msg
+FROM p11
+lateral view explode(message) dummy as msg;
+
+
+create view IF NOT EXISTS p13 as SELECT
+idone tweet_id, p12.msg, 
+case d.polarity
+ when 'negative' then -1
+ when 'positive' then 1
+ else 0 end as polarity
+FROM p12 left outer join dictionary d on p12.msg = d.word;
+
+
+-----
+
+create table IF NOT EXISTS ptsentiment
+stored as orc as select
+tweet_id,
+case
+when sum( polarity ) > 0 then 'positive'
+when sum( polarity ) < 0 then 'negative'
+else 'neutral' end as sentiment
+from p13 group by tweet_id;
+
+=== count total postive and negative
+
+
+INSERT OVERWRITE DIRECTORY '/user/hadoop/p3/zones/p/t/pr' ROW FORMAT DELIMITED FIELDS TERMINATED BY ','  SELECT COUNT(sentiment) FROM ptsentiment WHERE sentiment LIKE "%positive%";
+
+INSERT OVERWRITE DIRECTORY '/user/hadoop/p3/zones/p/t/nr' ROW FORMAT DELIMITED FIELDS TERMINATED BY ','  SELECT COUNT(sentiment) FROM ptsentiment WHERE sentiment LIKE "%negative%";
+
+
+-=-=-=-=- Pacific Hillary
+
+
+
+create view IF NOT EXISTS p21 as
+select idone, message
+from pzoneh
+LATERAL VIEW explode(sentences(lower(tweet))) dummy as message;
+
+
+
+create view IF NOT EXISTS p22 as 
+SELECT idone, msg
+FROM p21
+lateral view explode(message) dummy as msg;
+
+
+create view IF NOT EXISTS p23 as SELECT
+idone tweet_id, p22.msg, 
+case d.polarity
+ when 'negative' then -1
+ when 'positive' then 1
+ else 0 end as polarity
+FROM p22 left outer join dictionary d on p22.msg = d.word;
+
+
+-----
+
+create table IF NOT EXISTS phsentiment
+stored as orc as select
+tweet_id,
+case
+when sum( polarity ) > 0 then 'positive'
+when sum( polarity ) < 0 then 'negative'
+else 'neutral' end as sentiment
+from p23 group by tweet_id;
+
+=== count total postive and negative
+
+
+INSERT OVERWRITE DIRECTORY '/user/hadoop/p3/zones/p/h/pr' ROW FORMAT DELIMITED FIELDS TERMINATED BY ','  SELECT COUNT(sentiment) FROM phsentiment WHERE sentiment LIKE "%positive%";
+
+INSERT OVERWRITE DIRECTORY '/user/hadoop/p3/zones/p/h/nr' ROW FORMAT DELIMITED FIELDS TERMINATED BY ','  SELECT COUNT(sentiment) FROM phsentiment WHERE sentiment LIKE "%negative%";
+
+
+
+
+-=-=-=-=- Mountain Trump
+
+
+
+create view IF NOT EXISTS m11 as
+select idone, message
+from mzonet
+LATERAL VIEW explode(sentences(lower(tweet))) dummy as message;
+
+
+
+create view IF NOT EXISTS m12 as 
+SELECT idone, msg
+FROM m11
+lateral view explode(message) dummy as msg;
+
+
+create view IF NOT EXISTS m13 as SELECT
+idone tweet_id, m12.msg, 
+case d.polarity
+ when 'negative' then -1
+ when 'positive' then 1
+ else 0 end as polarity
+FROM m12 left outer join dictionary d on m12.msg = d.word;
+
+
+-----
+
+create table IF NOT EXISTS mtsentiment
+stored as orc as select
+tweet_id,
+case
+when sum( polarity ) > 0 then 'positive'
+when sum( polarity ) < 0 then 'negative'
+else 'neutral' end as sentiment
+from m13 group by tweet_id;
+
+=== count total postive and negative
+
+
+INSERT OVERWRITE DIRECTORY '/user/hadoop/p3/zones/m/t/pr' ROW FORMAT DELIMITED FIELDS TERMINATED BY ','  SELECT COUNT(sentiment) FROM mtsentiment WHERE sentiment LIKE "%positive%";
+
+INSERT OVERWRITE DIRECTORY '/user/hadoop/p3/zones/m/t/nr' ROW FORMAT DELIMITED FIELDS TERMINATED BY ','  SELECT COUNT(sentiment) FROM mtsentiment WHERE sentiment LIKE "%negative%";
+
+
+
+
+
+-=-=-=-=- Mountain Hillary
+
+
+
+
+
+
+create view IF NOT EXISTS m21 as
+select idone, message
+from mzoneh
+LATERAL VIEW explode(sentences(lower(tweet))) dummy as message;
+
+
+
+create view IF NOT EXISTS m22 as 
+SELECT idone, msg
+FROM m21
+lateral view explode(message) dummy as msg;
+
+
+create view IF NOT EXISTS m23 as SELECT
+idone tweet_id, m22.msg, 
+case d.polarity
+ when 'negative' then -1
+ when 'positive' then 1
+ else 0 end as polarity
+FROM m22 left outer join dictionary d on m22.msg = d.word;
+
+
+-----
+
+create table IF NOT EXISTS mhsentiment
+stored as orc as select
+tweet_id,
+case
+when sum( polarity ) > 0 then 'positive'
+when sum( polarity ) < 0 then 'negative'
+else 'neutral' end as sentiment
+from m23 group by tweet_id;
+
+=== count total postive and negative
+
+
+INSERT OVERWRITE DIRECTORY '/user/hadoop/p3/zones/m/h/pr' ROW FORMAT DELIMITED FIELDS TERMINATED BY ','  SELECT COUNT(sentiment) FROM mhsentiment WHERE sentiment LIKE "%positive%";
+
+INSERT OVERWRITE DIRECTORY '/user/hadoop/p3/zones/m/h/nr' ROW FORMAT DELIMITED FIELDS TERMINATED BY ','  SELECT COUNT(sentiment) FROM mhsentiment WHERE sentiment LIKE "%negative%";
+
+
+
+
+
+-=-=-=-=- Central Trump
+
+
+
+create view IF NOT EXISTS c11 as
+select idone, message
+from czonet
+LATERAL VIEW explode(sentences(lower(tweet))) dummy as message;
+
+
+
+create view IF NOT EXISTS c12 as 
+SELECT idone, msg
+FROM c11
+lateral view explode(message) dummy as msg;
+
+
+create view IF NOT EXISTS c13 as SELECT
+idone tweet_id, c12.msg, 
+case d.polarity
+ when 'negative' then -1
+ when 'positive' then 1
+ else 0 end as polarity
+FROM c12 left outer join dictionary d on c12.msg = d.word;
+
+
+-----
+
+create table IF NOT EXISTS ctsentiment
+stored as orc as select
+tweet_id,
+case
+when sum( polarity ) > 0 then 'positive'
+when sum( polarity ) < 0 then 'negative'
+else 'neutral' end as sentiment
+from c13 group by tweet_id;
+
+=== count total postive and negative
+
+
+INSERT OVERWRITE DIRECTORY '/user/hadoop/p3/zones/c/t/pr' ROW FORMAT DELIMITED FIELDS TERMINATED BY ','  SELECT COUNT(sentiment) FROM ctsentiment WHERE sentiment LIKE "%positive%";
+
+INSERT OVERWRITE DIRECTORY '/user/hadoop/p3/zones/c/t/nr' ROW FORMAT DELIMITED FIELDS TERMINATED BY ','  SELECT COUNT(sentiment) FROM ctsentiment WHERE sentiment LIKE "%negative%";
+
+
+
+
+
+-=-=-=-=- Central Hillary
+
+
+create view IF NOT EXISTS c21 as
+select idone, message
+from czoneh
+LATERAL VIEW explode(sentences(lower(tweet))) dummy as message;
+
+
+
+create view IF NOT EXISTS c22 as 
+SELECT idone, msg
+FROM c21
+lateral view explode(message) dummy as msg;
+
+
+create view IF NOT EXISTS c23 as SELECT
+idone tweet_id, c22.msg, 
+case d.polarity
+ when 'negative' then -1
+ when 'positive' then 1
+ else 0 end as polarity
+FROM c22 left outer join dictionary d on c22.msg = d.word;
+
+
+-----
+
+create table IF NOT EXISTS chsentiment
+stored as orc as select
+tweet_id,
+case
+when sum( polarity ) > 0 then 'positive'
+when sum( polarity ) < 0 then 'negative'
+else 'neutral' end as sentiment
+from c23 group by tweet_id;
+
+=== count total postive and negative
+
+
+INSERT OVERWRITE DIRECTORY '/user/hadoop/p3/zones/c/h/pr' ROW FORMAT DELIMITED FIELDS TERMINATED BY ','  SELECT COUNT(sentiment) FROM chsentiment WHERE sentiment LIKE "%positive%";
+
+INSERT OVERWRITE DIRECTORY '/user/hadoop/p3/zones/c/h/nr' ROW FORMAT DELIMITED FIELDS TERMINATED BY ','  SELECT COUNT(sentiment) FROM chsentiment WHERE sentiment LIKE "%negative%";
+
+
+
+
+
+
+
+-=-=-=-=- Eastern Trump
+
+
+
+create view IF NOT EXISTS e11 as
+select idone, message
+from ezonet
+LATERAL VIEW explode(sentences(lower(tweet))) dummy as message;
+
+
+
+create view IF NOT EXISTS e12 as 
+SELECT idone, msg
+FROM e11
+lateral view explode(message) dummy as msg;
+
+
+create view IF NOT EXISTS e13 as SELECT
+idone tweet_id, e12.msg, 
+case d.polarity
+ when 'negative' then -1
+ when 'positive' then 1
+ else 0 end as polarity
+FROM e12 left outer join dictionary d on e12.msg = d.word;
+
+
+-----
+
+create table IF NOT EXISTS etsentiment
+stored as orc as select
+tweet_id,
+case
+when sum( polarity ) > 0 then 'positive'
+when sum( polarity ) < 0 then 'negative'
+else 'neutral' end as sentiment
+from e13 group by tweet_id;
+
+=== count total postive and negative
+
+
+INSERT OVERWRITE DIRECTORY '/user/hadoop/p3/zones/e/t/pr' ROW FORMAT DELIMITED FIELDS TERMINATED BY ','  SELECT COUNT(sentiment) FROM etsentiment WHERE sentiment LIKE "%positive%";
+
+INSERT OVERWRITE DIRECTORY '/user/hadoop/p3/zones/e/t/nr' ROW FORMAT DELIMITED FIELDS TERMINATED BY ','  SELECT COUNT(sentiment) FROM etsentiment WHERE sentiment LIKE "%negative%";
+
+
+
+
+-=-=-=-=- Eastern Hillary
+
+
+
+
+create view IF NOT EXISTS e21 as
+select idone, message
+from ezoneh
+LATERAL VIEW explode(sentences(lower(tweet))) dummy as message;
+
+
+
+create view IF NOT EXISTS e22 as 
+SELECT idone, msg
+FROM e21
+lateral view explode(message) dummy as msg;
+
+
+create view IF NOT EXISTS e23 as SELECT
+idone tweet_id, e22.msg, 
+case d.polarity
+ when 'negative' then -1
+ when 'positive' then 1
+ else 0 end as polarity
+FROM e22 left outer join dictionary d on e22.msg = d.word;
+
+
+-----
+
+create table IF NOT EXISTS ehsentiment
+stored as orc as select
+tweet_id,
+case
+when sum( polarity ) > 0 then 'positive'
+when sum( polarity ) < 0 then 'negative'
+else 'neutral' end as sentiment
+from e23 group by tweet_id;
+
+=== count total postive and negative
+
+
+INSERT OVERWRITE DIRECTORY '/user/hadoop/p3/zones/e/h/pr' ROW FORMAT DELIMITED FIELDS TERMINATED BY ','  SELECT COUNT(sentiment) FROM ehsentiment WHERE sentiment LIKE "%positive%";
+
+INSERT OVERWRITE DIRECTORY '/user/hadoop/p3/zones/e/h/nr' ROW FORMAT DELIMITED FIELDS TERMINATED BY ','  SELECT COUNT(sentiment) FROM ehsentiment WHERE sentiment LIKE "%negative%";
+
+=======Extraction of Data to Linux File System ====
+
+mkdir p3
+mkdir p3/a100
+mkdir p3/dictionary
+mkdir p3/zones
+mkdir p3/zones/p
+mkdir p3/zones/p/t
+mkdir p3/zones/p/t/pr
+mkdir		p3/zones/p/t/nr
+mkdir		p3/zones/p/h
+mkdir		p3/zones/p/h/pr
+mkdir		p3/zones/p/h/nr
+mkdir		p3/zones/m
+mkdir		p3/zones/m/t
+mkdir		p3/zones/m/t/pr
+mkdir		p3/zones/m/t/nr
+mkdir		p3/zones/m/h
+mkdir		p3/zones/m/h/pr
+mkdir		p3/zones/m/h/nr
+mkdir		p3/zones/c
+mkdir		p3/zones/c/t
+mkdir		p3/zones/c/t/pr
+mkdir		p3/zones/c/t/nr
+mkdir		p3/zones/c/h
+mkdir		p3/zones/c/h/pr
+mkdir		p3/zones/c/h/nr
+mkdir		p3/zones/e
+mkdir		p3/zones/e/t
+mkdir		p3/zones/e/t/pr
+mkdir		p3/zones/e/t/nr
+mkdir		p3/zones/e/h
+mkdir		p3/zones/e/h/pr
+mkdir		p3/zones/e/h/nr
+
+
+==== get from hadoop to linux
+
+
+hdfs dfs -get p3/zones/p/t/pr/000000_0  p3/zones/p/t/pr/ptpr.txt
+hdfs dfs -get p3/zones/p/t/nr/000000_0  p3/zones/p/t/nr/ptnr.txt
+hdfs dfs -get p3/zones/p/h/pr/000000_0  p3/zones/p/h/pr/phpr.txt
+hdfs dfs -get p3/zones/p/h/nr/000000_0  p3/zones/p/h/nr/phnr.txt
+
+hdfs dfs -get p3/zones/m/t/pr/000000_0  p3/zones/m/t/pr/mtpr.txt
+hdfs dfs -get p3/zones/m/t/nr/000000_0  p3/zones/m/t/nr/mtnr.txt
+hdfs dfs -get p3/zones/m/h/pr/000000_0  p3/zones/m/h/pr/mhpr.txt
+hdfs dfs -get p3/zones/m/h/nr/000000_0  p3/zones/m/h/nr/mhnr.txt
+
+
+hdfs dfs -get p3/zones/c/t/pr/000000_0  p3/zones/c/t/pr/ctpr.txt
+hdfs dfs -get p3/zones/c/t/nr/000000_0  p3/zones/c/t/nr/ctnr.txt
+hdfs dfs -get p3/zones/c/h/pr/000000_0  p3/zones/c/h/pr/chpr.txt
+hdfs dfs -get p3/zones/c/h/nr/000000_0  p3/zones/c/h/nr/chnr.txt
+
+hdfs dfs -get p3/zones/e/t/pr/000000_0  p3/zones/e/t/pr/etpr.txt
+hdfs dfs -get p3/zones/e/t/nr/000000_0  p3/zones/e/t/nr/etnr.txt
+hdfs dfs -get p3/zones/e/h/pr/000000_0  p3/zones/e/h/pr/ehpr.txt
+hdfs dfs -get p3/zones/e/h/nr/000000_0  p3/zones/e/h/nr/ehnr.txt
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
